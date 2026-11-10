@@ -122,6 +122,8 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 .locrow .pick { color: var(--accent); padding-left: 0; }
 .menu button.step { grid-template-columns: 46px minmax(0, 1fr); }
 .menu .n.wrap { white-space: normal; }
+
+.sugg .none { padding: 9px 10px; color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -133,13 +135,13 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
       <p class="sub">Walking directions that trade a few minutes for parks, trees, old buildings and streets with life.</p>
       <div class="od">
         <div class="fields">
-          <div class="field" id="fieldA"><span class="dot">A</span><input id="inA" autocomplete="off" spellcheck="false" placeholder="Start: address or place" aria-label="Start"><button class="pick" id="pickA" type="button">Pick on map</button></div>
-          <div class="field" id="fieldB"><span class="dot b">B</span><input id="inB" autocomplete="off" spellcheck="false" placeholder="End: address or place" aria-label="End"><button class="pick" id="pickB" type="button">Pick on map</button></div>
+          <div class="field" id="fieldA"><span class="dot">A</span><input id="inA" autocomplete="off" spellcheck="false" placeholder="Start: address, venue or place" aria-label="Start"><button class="pick" id="pickA" type="button">Pick on map</button></div>
+          <div class="field" id="fieldB"><span class="dot b">B</span><input id="inB" autocomplete="off" spellcheck="false" placeholder="End: address, venue or place" aria-label="End"><button class="pick" id="pickB" type="button">Pick on map</button></div>
         </div>
         <button class="swap" id="swap" type="button" title="Swap start and end" aria-label="Swap start and end">⇅</button>
       </div>
       <div class="locrow"><button class="pick" id="loc" type="button">◉ Use my location as the start</button></div>
-      <p class="note" id="geoNote" hidden>Address search is not available in this preview. Type a park, station or landmark, or pick on the map.</p>
+      <p class="note" id="geoNote" hidden>Address and venue search is not available in this preview. Type a park, station or landmark, or pick on the map.</p>
       <div class="trips" id="trips"></div>
     </section>
 
@@ -166,7 +168,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
       <h2>How it scores streets</h2>
       <p class="note" id="about"></p>
       <p class="note">Limits of this version: it does not know park opening hours, so check before a night walk. Directions are a guide. Follow street signs and signals. Street life uses places mapped in OpenStreetMap, which is not complete.</p>
-      <p class="note">Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data.</p>
+      <p class="note">Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Place search by Photon (Komoot) and NYC Planning GeoSearch.</p>
     </section>
   </div>
 
@@ -236,6 +238,7 @@ function init(meta, bn, bt, ba, bg) {
   const poly = rings => { const p = new Path2D(); for (const pg of rings) for (const r of pg) { p.moveTo(r[0], r[1]); for (let i = 2; i < r.length; i += 2) p.lineTo(r[i], r[i + 1]); p.closePath(); } return p; };
   P.land = poly(D.land); P.green = poly(D.green); P.water = poly(D.water); P.boro = poly(D.boro);
   { const seen = new Set(); D.labels = D.labels.filter(l => !seen.has(l[0] + l[3]) && seen.add(l[0] + l[3]) && !/Sanctuary/.test(l[0])); }
+  for (const p of D.places) p[4] = norm(p[0]);
   buildUI(); readCss(); resize(); setWeights();
   $('loading').hidden = true;
   let saved = null; try { saved = JSON.parse(localStorage.getItem('alive-v2') || 'null'); } catch (e) {}
@@ -285,7 +288,9 @@ function buildUI() {
   $('zout').onclick = () => zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, 1 / 1.5);
   $('zfit').onclick = () => fit();
 }
-const TYPE = { p: 'Park', s: 'Subway', l: 'Landmark', n: 'Area', a: 'Place', x: 'Address' };
+const TYPE = { p: 'Park', s: 'Subway', l: 'Landmark', n: 'Area', a: 'Place', x: 'Address', v: 'Place' };
+const PHOTON = 'https://photon.komoot.io/api/?limit=5&bbox=-74.27,40.47,-73.68,40.93&q=';
+const norm = t => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
 const GEO = 'https://geosearch.planninglabs.nyc/v2/autocomplete?text=';
 function wireSearch(w) {
   const inp = $('in' + w), field = $('field' + w); let box = null, items = [], hi = 0;
@@ -293,20 +298,29 @@ function wireSearch(w) {
   const choose = p => { state[w] = mk(p[2], p[3], p[0]); close(); syncInputs(); solve(true); };
   const render = () => { box.innerHTML = ''; items.forEach((p, i) => { const b = document.createElement('button'); b.type = 'button'; if (i === hi) b.className = 'hi'; const a = document.createElement('span'); a.textContent = p[0]; const t = document.createElement('span'); t.textContent = TYPE[p[1]]; b.append(a, t); b.onmousedown = e => { e.preventDefault(); choose(p); }; box.append(b); }); };
   let timer = 0, token = 0;
-  const show = list => { close(); items = list; hi = 0; if (!items.length) return; box = document.createElement('div'); box.className = 'sugg'; field.append(box); render(); };
+  const show = (list, note) => { close(); items = list; hi = 0; if (!items.length && !note) return; box = document.createElement('div'); box.className = 'sugg'; field.append(box); if (items.length) render(); else { const d = document.createElement('div'); d.className = 'none'; d.textContent = note; box.append(d); } };
+  const nice = t => t.toLowerCase().replace(/(^|[\s\-'])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+  const getJSON = u => fetch(u).then(r => { if (!r.ok) throw 0; return r.json(); });
+  const NONE = 'No match yet. Try the street address, or use Pick on map.';
   inp.oninput = () => {
-    const q = inp.value.trim().toLowerCase(), my = ++token; clearTimeout(timer); if (q.length < 2) { close(); return; }
+    const raw = inp.value.trim(), q = raw.toLowerCase(), nq = norm(q), my = ++token; clearTimeout(timer); if (q.length < 2 || !nq) { close(); return; }
     const a = [], b = [];
-    for (const p of D.places) { const i = p[0].toLowerCase().indexOf(q); if (i === 0) a.push(p); else if (i > 0 && b.length < 7) b.push(p); if (a.length > 7) break; }
+    for (const p of D.places) { const i = p[4].indexOf(nq); if (i === 0) a.push(p); else if (i > 0 && b.length < 7) b.push(p); if (a.length > 7) break; }
     const local = a.concat(b); show(local.slice(0, 7));
-    if (!geoOK || q.length < 3) return;
-    timer = setTimeout(() => fetch(GEO + encodeURIComponent(inp.value.trim())).then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => {
-      if (my !== token || document.activeElement !== inp) return;
-      const addr = (j.features || []).slice(0, 5).map(f => { const [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [String(f.properties.label || f.properties.name).replace(/, NY, USA$/, '').toLowerCase().replace(/(^|[\s\-'])([a-z])/g, (m, p, c) => p + c.toUpperCase()), 'x', x, y]; }).filter((p, i, arr) => arr.findIndex(q => q[2] === p[2] && q[3] === p[3]) === i);
-      if (addr.length) show(local.slice(0, 2).concat(addr));
-    }).catch(() => { geoOK = false; $('geoNote').hidden = false; }), 220);
+    if (!geoOK || q.length < 3) { if (!local.length && !geoOK) show([], NONE); return; }
+    timer = setTimeout(() => {
+      let fails = 0; const qs = [raw]; if (/\s/.test(raw) && raw.length < 30) qs.push(raw.replace(/\s+/g, ''));
+      const ph = Promise.all(qs.map(t => getJSON(PHOTON + encodeURIComponent(t)).catch(() => { fails++; return { features: [] }; }))).then(rs => rs.flatMap(j => j.features || []).filter(f => f.properties.name).map(f => { const pr = f.properties, [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [pr.name + (pr.street ? ' · ' + pr.street : '') + (pr.district || pr.city ? ', ' + (pr.district || pr.city) : ''), 'v', x, y, norm(pr.name)]; }).sort((u, v) => (v[4].includes(nq) ? 1 : 0) - (u[4].includes(nq) ? 1 : 0)));
+      const ad = getJSON(GEO + encodeURIComponent(raw)).then(j => (j.features || []).map(f => { const [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [nice(String(f.properties.label || f.properties.name).replace(/, NY, USA$/, '')), 'x', x, y]; })).catch(() => { fails++; return []; });
+      Promise.all([ph, ad]).then(([pl, addr]) => {
+        if (fails > qs.length) { geoOK = false; $('geoNote').hidden = false; }
+        if (my !== token || document.activeElement !== inp) return;
+        const list = /^\d/.test(raw) ? addr.slice(0, 4).concat(pl.slice(0, 2), local.slice(0, 1)) : local.slice(0, 2).concat(pl.slice(0, 4), addr.slice(0, 2));
+        const seen = new Set(); show(list.filter(p => { const k = Math.round(p[2] / 15) + ',' + Math.round(p[3] / 15) + norm(p[0]).slice(0, 6); return !seen.has(k) && seen.add(k); }), NONE);
+      });
+    }, 220);
   };
-  inp.onkeydown = e => { if (!box) return; if (e.key === 'ArrowDown') { hi = (hi + 1) % items.length; render(); e.preventDefault(); } else if (e.key === 'ArrowUp') { hi = (hi + items.length - 1) % items.length; render(); e.preventDefault(); } else if (e.key === 'Enter') { choose(items[hi]); } else if (e.key === 'Escape') { close(); } };
+  inp.onkeydown = e => { if (!box) return; if (e.key === 'ArrowDown') { hi = (hi + 1) % items.length; render(); e.preventDefault(); } else if (e.key === 'ArrowUp') { hi = (hi + items.length - 1) % items.length; render(); e.preventDefault(); } else if (e.key === 'Enter') { if (items[hi]) choose(items[hi]); } else if (e.key === 'Escape') { close(); } };
   inp.onblur = () => { close(); syncInputs(); };
   inp.onfocus = () => inp.select();
 }

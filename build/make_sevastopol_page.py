@@ -26,7 +26,8 @@ swap('content="%s"' % SITE, 'content="%ssevastopol/"' % SITE)
 swap(SITE + 'og.png', SITE + 'sevastopol/og.png', 2)
 
 # ----- page text -----
-swap('<span class="tag">NYC beta</span>', '<span class="tag">Sevastopol beta</span>')
+# the city picker: this page is the chosen one, and New York is one folder up
+swap('<option value="./" selected>New York</option><option value="sevastopol/">Sevastopol</option>', '<option value="../">New York</option><option value="./" selected>Sevastopol</option>')
 swap('Walking directions for a more alive journey: parks, trees, old buildings and streets with life, for a few minutes more.',
      'Walking directions for a more alive journey: parks, sea views, trees, old stones and streets with life, for a few minutes more.')
 swap('placeholder="Start: address, venue or place"', 'placeholder="Start: улица, place or landmark"')
@@ -34,8 +35,8 @@ swap('placeholder="End: address, venue or place"', 'placeholder="End: улица
 swap('Type a park, station or landmark, or pick on the map.', 'Type a park, beach, pier or landmark, or pick on the map.')
 swap('Limits of this version: it does not know park opening hours, so check before a night walk. Directions are a guide. Follow street signs and signals. Street life uses places mapped in OpenStreetMap, which is not complete.',
      'Limits of this version: the map is only as current as OpenStreetMap, so a path, a gate or an embankment may be closed on the day. Paths inside mapped military land are left out, but not every fence is on the map. Ferries stop in bad weather and when the bay is closed. Few pavements are mapped here, so many walks follow the street itself. Directions are a guide. Follow signs and signals.')
-swap('Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Place search by Photon (Komoot) and NYC Planning GeoSearch. <a href="sevastopol/" style="color:var(--accent)">Alive Maps Sevastopol</a>',
-     'Map data © OpenStreetMap contributors. Tree cover from the Global Canopy Height map by Meta and the World Resources Institute. Place search by Photon (Komoot). <a href="../" style="color:var(--accent)">Alive Maps New York</a>')
+swap('Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Place search by Photon (Komoot) and NYC Planning GeoSearch.',
+     'Map data © OpenStreetMap contributors. Tree cover from the Global Canopy Height map by Meta and the World Resources Institute. Place search by Photon (Komoot).')
 swap('aria-label="Map of New York City with the fastest route and two alive routes"', 'aria-label="Map of Sevastopol with the fastest route and two alive routes"')
 swap('Loading New York streets…', 'Loading Sevastopol streets…', 2)
 swap("title: 'Alive Maps NYC'", "title: 'Alive Maps Sevastopol'")

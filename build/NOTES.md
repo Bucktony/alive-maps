@@ -8,6 +8,7 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - `meta.json`: map shapes (land, parks, water), place names, street names, sights, tile index.
 - `nodes.b64.txt`, `topo.b64.txt`, `attr.b64.txt`, `geom.b64.txt`: the street graph, as base64 text of binary arrays.
 - `build/build_nyc.py`: the script that makes the five data files from raw data.
+- City picker: the "Select where you are" menu beside the logo lists New York and Sevastopol. Each option's value is the address of that city's page. To add a city, add an `<option>` in `index.html` and a matching swap in `build/make_sevastopol_page.py`.
 - `og.png`: the picture shown when a link to the site is pasted into X, iMessage or Slack (1200 x 630). It is a screenshot of the app. Retake it after a visual change.
 - `build/NOTES.md`: this file.
 

@@ -310,8 +310,8 @@ function wireSearch(w) {
     if (!geoOK || q.length < 3) { if (!local.length && !geoOK) show([], NONE); return; }
     timer = setTimeout(() => {
       let fails = 0; const qs = [raw]; if (/\s/.test(raw) && raw.length < 30) qs.push(raw.replace(/\s+/g, ''));
-      const ph = Promise.all(qs.map(t => getJSON(PHOTON + encodeURIComponent(t)).catch(() => { fails++; return { features: [] }; }))).then(rs => rs.flatMap(j => j.features || []).filter(f => f.properties.name).map(f => { const pr = f.properties, [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [pr.name + (pr.street ? ' · ' + pr.street : '') + (pr.district || pr.city ? ', ' + (pr.district || pr.city) : ''), 'v', x, y, norm(pr.name)]; }).sort((u, v) => (v[4].includes(nq) ? 1 : 0) - (u[4].includes(nq) ? 1 : 0)));
-      const ad = getJSON(GEO + encodeURIComponent(raw)).then(j => (j.features || []).map(f => { const [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [nice(String(f.properties.label || f.properties.name).replace(/, NY, USA$/, '')), 'x', x, y]; })).catch(() => { fails++; return []; });
+      const ph = Promise.all(qs.map(t => getJSON(PHOTON + encodeURIComponent(t)).catch(() => { fails++; return { features: [] }; }))).then(rs => rs.flatMap(j => j.features || []).filter(f => f.properties.name).map(f => { const pr = f.properties, [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [pr.name + (pr.street ? ' · ' + pr.street : '') + (pr.district || pr.city ? ', ' + (pr.district || pr.city) : ''), 'v', x, y, norm(pr.name)]; }).filter(p => inCity(p[2], p[3])).sort((u, v) => (v[4].includes(nq) ? 1 : 0) - (u[4].includes(nq) ? 1 : 0)));
+      const ad = getJSON(GEO + encodeURIComponent(raw)).then(j => (j.features || []).map(f => { const [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [nice(String(f.properties.label || f.properties.name).replace(/, NY, USA$/, '')), 'x', x, y]; }).filter(p => inCity(p[2], p[3]))).catch(() => { fails++; return []; });
       Promise.all([ph, ad]).then(([pl, addr]) => {
         if (fails > qs.length) { geoOK = false; $('geoNote').hidden = false; }
         if (my !== token || document.activeElement !== inp) return;
@@ -329,7 +329,8 @@ function setPicking(w) { state.picking = w; $('fieldA').classList.toggle('active
   $('hint').textContent = w ? `Click the map to set the ${w === 'A' ? 'start' : 'end'}.` : 'Drag to move. Scroll or pinch to zoom.'; }
 function syncInputs() { $('inA').value = state.A ? state.A.name : ''; $('inB').value = state.B ? state.B.name : ''; }
 function toXY(lat, lon) { return [(lon - D.lon0) * D.kx, (D.lat0 - lat) * D.ky]; }
-function mk(x, y, name) { return { n: nearest(x, y), x, y, name }; }
+function inCity(x, y) { for (const pg of D.boro) { let ins = false; pg.forEach((r, ri) => { let c = false; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { if ((r[i + 1] > y) !== (r[j + 1] > y) && x < (r[j] - r[i]) * (y - r[i + 1]) / (r[j + 1] - r[i + 1]) + r[i]) c = !c; } if (c) ins = ri === 0 ? true : false; }); if (ins) return true; } return false; }
+function mk(x, y, name) { let n = nearest(x, y); if (n < 0 && inCity(x, y)) n = nearest(x, y, 3000); return { n, x, y, name }; }
 function loadTrip(i) { const t = TRIPS[i]; state.A = mk(...toXY(...t[1]), t[2]); state.B = mk(...toXY(...t[3]), t[4]); state.sel = 'alive'; syncInputs(); solve(true); }
 function nearest(x, y, maxd = 400) {
   let best = -1, bd = maxd * maxd; const cx = x / GC | 0, cy = y / GC | 0, R = Math.ceil(maxd / GC);
@@ -415,7 +416,7 @@ const same = (a, b) => a && b && a.edges.length === b.edges.length && Math.abs(a
 function solve(refit) {
   setPicking(null); state.focus = null; state.routes = {};
   const A = state.A, B = state.B;
-  if (!A || !B || A.n < 0 || B.n < 0) { report(A && A.n < 0 || B && B.n < 0 ? 'That point is outside New York City. Pick a point in one of the five boroughs.' : ''); draw(); return; }
+  if (!A || !B || A.n < 0 || B.n < 0) { report(A && A.n < 0 ? 'The start is outside New York City. Pick a start in one of the five boroughs.' : B && B.n < 0 ? 'The end is outside New York City. Pick an end in one of the five boroughs.' : ''); draw(); return; }
   try { localStorage.setItem('alive-v2', JSON.stringify({ A: { x: A.x, y: A.y, name: A.name }, B: { x: B.x, y: B.y, name: B.name } })); } catch (e) {}
   const s = A.n, t = B.n, fast = search(s, t, 0, 0);
   if (!fast) { report('No walking route joins these two points. There is water between them and no bridge on foot.'); draw(); return; }
@@ -556,7 +557,7 @@ const retheme = () => { readCss(); draw(); };
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
 new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => draw());
-window.__alive = { state, solve, loadTrip, TRIPS, fit, view, draw, mk, toXY, syncInputs };
+window.__alive = { state, solve, loadTrip, TRIPS, fit, view, draw, mk, toXY, syncInputs, inCity };
 })();
 </script>
 

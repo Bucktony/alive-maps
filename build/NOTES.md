@@ -8,6 +8,7 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - `meta.json`: map shapes (land, parks, water), place names, street names, sights, tile index.
 - `nodes.b64.txt`, `topo.b64.txt`, `attr.b64.txt`, `geom.b64.txt`: the street graph, as base64 text of binary arrays.
 - `build/build_nyc.py`: the script that makes the five data files from raw data.
+- City picker: the "Select where you are" menu beside the logo lists New York and Sevastopol. Each option's value is the address of that city's page. To add a city, add an `<option>` in `index.html` and a matching swap in `build/make_sevastopol_page.py`.
 - `og.png`: the picture shown when a link to the site is pasted into X, iMessage or Slack (1200 x 630). It is a screenshot of the app. Retake it after a visual change.
 - `build/NOTES.md`: this file.
 
@@ -44,3 +45,37 @@ Then run `build_nyc.py` (needs numpy, shapely 2, pyproj). Fix the input and outp
 ## Data credits
 
 Map data © OpenStreetMap contributors (ODbL). Trees, landmarks and historic districts from NYC Open Data.
+
+## Sevastopol
+
+Page: `/sevastopol/` on the live site. Everything for it is in the `sevastopol/` folder: `index.html`, the five data files and its own `og.png`.
+
+### What is different from New York
+
+- `sevastopol/index.html` is made from the New York `index.html` by `build/make_sevastopol_page.py`. Do not edit it by hand. Change `index.html`, or change the swaps in that script, then run `python3 build/make_sevastopol_page.py` from the repository root. If a swap no longer matches, the script stops and names it.
+- Street and place names are the local OpenStreetMap names, so they are in Russian, as on the street signs. Places that have an English name in OpenStreetMap can also be found by that name. The page text is in English.
+- There is no tree census, so the tree score is the share of ground under tree canopy (3 m or taller) within about 17 m of the street, from the Meta and WRI Global Canopy Height map.
+- There is no city register of landmarks. Landmarks are OpenStreetMap `historic` features (monuments, memorials, forts, ruins, the Chersonesus site). The 26 named historic sites with a mapped outline take the place of historic districts.
+- The passenger boats across the bay (Артбухта to Северная, Артбухта to Радиогорка, Графская пристань to Северная) are in the graph as edge kind 7. A crossing counts as its length plus 400 m for waiting. The map draws them as dashed blue lines, the directions say "Take the ferry", and a note asks the walker to check that the boats are running. The Inkerman boat and the seasonal Balaklava beach boats are left out.
+- Paths and small roads inside mapped military land are left out (985 segments, 132 km), and places inside it are not listed.
+- Courtyard service roads are kept as walkable, because few pavements are mapped. Motorway-class (trunk) roads are not walkable.
+- Address search uses Photon only. The saved walk uses its own browser key, so it does not mix with New York.
+- Beaches are a kind of stop.
+
+### Numbers
+
+39,510 nodes and 54,147 edges, 5,524 km of streets and paths. 2,948 cafés, shops and venues. 449 monuments and memorials. About 21% of street length is under tree canopy. The five data files are 2.8 MB together.
+
+### How to rebuild the data
+
+Unlike New York, every input is public, so the build can be run anywhere. It needs Python with `osmium`, `shapely` 2, `numpy` and `rasterio`.
+
+1. Download `https://download.openstreetmap.fr/extracts/europe/ukraine/sevastopol-latest.osm.pbf` (7 MB, updated daily). The Geofabrik Crimea file has the same data.
+2. `python3 build/extract_sevastopol.py sevastopol-latest.osm.pbf sev_raw.json`
+3. Download the four canopy tiles (870 MB) named at the top of `build/canopy_sevastopol.py`, then `python3 build/canopy_sevastopol.py <tile folder> canopy.npz`. The canopy map does not change, so this step is only needed once.
+4. `python3 build/build_sevastopol.py sev_raw.json canopy.npz sevastopol/`
+5. Open the page and try the six sample walks. Retake `sevastopol/og.png` (1200 x 630) after a visual change.
+
+### Using this for another city
+
+The three Sevastopol scripts are the template for a city that has only OpenStreetMap. Change the bounding box and the boundary relation id in the extract script, the canopy tile names, and the city text and sample walks in `make_sevastopol_page.py`. The coastline step in `build_sevastopol.py` (carrying the open ends of the coast to the map edge) is specific to this coast and needs a look for each new city.

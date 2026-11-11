@@ -8,6 +8,7 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - `meta.json`: map shapes (land, parks, water), place names, street names, sights, tile index.
 - `nodes.b64.txt`, `topo.b64.txt`, `attr.b64.txt`, `geom.b64.txt`: the street graph, as base64 text of binary arrays.
 - `build/build_nyc.py`: the script that makes the five data files from raw data.
+- `og.png`: the picture shown when a link to the site is pasted into X, iMessage or Slack (1200 x 630). It is a screenshot of the app. Retake it after a visual change.
 - `build/NOTES.md`: this file.
 
 ## How the app works
@@ -18,6 +19,8 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - Three routes: Fastest (lambda 0), Alive (best alive score within +12% length), Most alive (best within +45%). The search tries several lambda values up to 3.
 - Place search uses three sources: the built-in `places` list, Photon (photon.komoot.io) for venues, and NYC Planning GeoSearch for addresses. Results outside the borough polygons are dropped.
 - Share links: the address bar always holds a link to the walk on screen, and the "Share this walk" button copies it (on a phone it opens the share sheet). Format: `?a=lat,lon&an=name&b=lat,lon&bn=name`, plus `r=most` or `r=fast` when the chosen route is not Alive, and `p=` six 0/1 digits when a preference chip is off. A link wins over the walk saved in the browser. Links use latitude and longitude, so they still work after a data rebuild.
+- Map look: warm cream land, white streets, a blue Alive route, a dashed grey Fastest route. Little trees are scattered through parks and along the leafy stretches of the chosen route (tree or green score 5 or more). Stops on the route show as round icon badges; tapping one opens a card with its name. Up to four cards (a park, a historic stretch, a landmark, a café) show by default.
+- Layout: on a wide screen the map fills the window and the controls float over its left side. Below 860 px wide they stack above and below the map.
 
 ## Binary layout (little-endian)
 

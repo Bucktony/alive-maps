@@ -96,8 +96,11 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 .zoom { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
 .zoom button { width: 38px; height: 38px; border: 0; background: transparent; font-size: 18px; cursor: pointer; }
+.views { position: absolute; right: 64px; top: 14px; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
+.views button { border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.views button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
 .zoom button + button { border-top: 1px solid var(--line); }
-.hint { position: absolute; left: 14px; bottom: 14px; right: 14px; display: flex; justify-content: flex-end; gap: 8px; align-items: flex-end; pointer-events: none; font-size: 12px; }
+.hint { position: absolute; left: 14px; bottom: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 8px; align-items: flex-end; pointer-events: none; font-size: 12px; }
 .hint span { background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: 5px 12px; color: var(--muted); max-width: 100%; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: var(--m-land); }
 @media (max-width: 860px) {
@@ -107,6 +110,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
   .mapwrap { position: relative; inset: auto; height: 62vh; min-height: 320px; order: 2; border-radius: 22px; box-shadow: var(--shadow); }
   .b-top { order: 1; } .b-res { order: 3; } .b-menu { order: 4; } .b-pref { order: 5; } .b-about { order: 6; }
   .menu { max-height: none; }
+  #attr:not([hidden]) + #hint { display: none; }
 }
 
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -194,14 +198,15 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
       <h2>How it scores streets</h2>
       <p class="note" id="about"></p>
       <p class="note">Limits of this version: it does not know park opening hours, so check before a night walk. Directions are a guide. Follow street signs and signals. Street life uses places mapped in OpenStreetMap, which is not complete.</p>
-      <p class="note">Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Place search by Photon (Komoot) and NYC Planning GeoSearch.</p>
+      <p class="note">Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Aerial photos from the City of New York. Place search by Photon (Komoot) and NYC Planning GeoSearch.</p>
     </section>
   </div>
 
   <div class="mapwrap">
     <canvas id="map" aria-label="Map of New York City with the fastest route and two alive routes"></canvas>
+    <div class="views" id="views" role="group" aria-label="Map view"><button type="button" data-v="map" aria-pressed="true">Map</button><button type="button" data-v="2024" aria-pressed="false">Satellite</button><button type="button" data-v="1951" aria-pressed="false" title="Aerial photos from 1951">1951</button><button type="button" data-v="1924" aria-pressed="false" title="Aerial photos from 1924">1924</button></div>
     <div class="zoom"><button id="zin" type="button" aria-label="Zoom in">+</button><button id="zout" type="button" aria-label="Zoom out">−</button><button id="zfit" type="button" aria-label="Fit route" title="Fit route">◎</button></div>
-    <div class="hint"><span id="hint">Drag to move. Scroll or pinch to zoom. Tap a stop to see what it is.</span></div>
+    <div class="hint"><span id="attr" hidden>Aerial photos: City of New York</span><span id="hint">Drag to move. Scroll or pinch to zoom. Tap a stop to see what it is.</span></div>
     <div class="loading" id="loading">Loading New York streets…</div>
   </div>
 </div>
@@ -219,8 +224,8 @@ const FEATS = [
   { k: 'quiet', label: 'Away from traffic', short: 'Heavy traffic', w: 1.0 },
 ];
 const ROUTES = [
-  { id: 'alive', name: 'Alive', cap: 0.12, color: 'alive', blurb: 'A nicer walk for a minute or two more' },
-  { id: 'most', name: 'Most alive', cap: 0.45, color: 'most', blurb: 'The nicest walk when you have time' },
+  { id: 'alive', name: 'Alive', cap: 0.15, color: 'alive', blurb: 'A nicer walk for a few minutes more' },
+  { id: 'most', name: 'Most alive', cap: 0.67, color: 'most', blurb: 'The nicest walk when you have time' },
   { id: 'fast', name: 'Fastest', cap: 0, color: 'fast', blurb: 'When you have to hustle' },
 ];
 const TRIPS = [
@@ -232,9 +237,33 @@ const TRIPS = [
   ['Staten Island: St. George Ferry to Snug Harbor', [40.6437, -74.0736], 'St. George Ferry Terminal', [40.6442, -74.1026], 'Snug Harbor'],
 ];
 const KIND = { P: 'Park', D: 'Historic district', W: 'Waterfront', l: 'Landmark', c: 'Café', m: 'Museum', a: 'Art', v: 'Sight', t: 'Theatre', k: 'Market' };
-const state = { on: FEATS.map(() => true), me: null, A: null, B: null, picking: null, routes: {}, sel: 'alive', tab: 'hi', focus: null };
+const state = { on: FEATS.map(() => true), me: null, A: null, B: null, picking: null, routes: {}, sel: 'alive', tab: 'hi', focus: null, view: 'map' };
 let D, N, E, nx, ny, ea, eb, el, ek, f3, epark, edist, enm, geoOK = true, gcnt, gpts, goff, off, adj, logm, logmMin = 0, cellOff, cellNodes, GC = 200, GW;
 let view = { s: 0.05, x: 0, y: 0 }, P = {}, tiles = new Map(), css = {}, GB, WB;
+// Aerial photo views. The tiles are the City of New York's own orthoimagery, served in the usual web map tile layout.
+const LAYERS = { '2024': 'NYC_Orthos_2024', '1951': 'NYC_Orthos_1951', '1924': 'Ortho_1924_Mosaic' }, PHOTO = 'https://tiles.arcgis.com/tiles/yG5s3afENB5iO9fj/arcgis/rest/services/', shots = new Map();
+function shot(layer, z, x, y) {
+  const k = layer + '/' + z + '/' + y + '/' + x; let o = shots.get(k); if (o) return o;
+  if (shots.size > 600) { let n = 0; for (const key of shots.keys()) { shots.delete(key); if (++n >= 200) break; } }
+  o = { img: new Image(), ok: 0 }; o.img.onload = () => { o.ok = 1; draw(); }; o.img.onerror = () => { o.ok = -1; draw(); };
+  o.img.src = PHOTO + layer + '/MapServer/tile/' + z + '/' + y + '/' + x; shots.set(k, o); return o;
+}
+// Draws the photo tiles that cover the screen. While a tile loads, or where a layer has no tile that sharp, the matching part of a coarser tile is drawn instead.
+function photo(layer, s, w, h, dpr) {
+  const z = Math.min(20, Math.max(10, Math.round(Math.log2(30.37e6 * s * (dpr > 1 ? 1.5 : 1) / 256)))), n = 2 ** z, rad = Math.PI / 180;
+  const mx = x => (D.lon0 + x / D.kx + 180) / 360 * n, my = y => (1 - Math.asinh(Math.tan((D.lat0 - y / D.ky) * rad)) / Math.PI) / 2 * n;
+  const wx = tx => (tx / n * 360 - 180 - D.lon0) * D.kx, wy = ty => (D.lat0 - Math.atan(Math.sinh(Math.PI * (1 - 2 * ty / n))) / rad) * D.ky;
+  const vx0 = Math.max(0, -view.x / s), vx1 = Math.min(D.w, (w - view.x) / s), vy0 = Math.max(0, -view.y / s), vy1 = Math.min(D.h, (h - view.y) / s); if (vx0 >= vx1 || vy0 >= vy1) return;
+  const a0 = Math.floor(mx(vx0)), a1 = Math.floor(mx(vx1)), b0 = Math.floor(my(vy0)), b1 = Math.floor(my(vy1)), e = 0.6 / s;
+  for (let ty = b0; ty <= b1; ty++) for (let tx = a0; tx <= a1; tx++) {
+    let o = shot(layer, z, tx, ty), d = 0;
+    while (o.ok !== 1 && d < 8 && z - d > 9) { d++; const pz = z - d, px = tx >> d, py = ty >> d; o = o.ok === -1 ? shot(layer, pz, px, py) : (shots.get(layer + '/' + pz + '/' + py + '/' + px) || { ok: 0 }); }
+    if (o.ok !== 1) continue;
+    const f = 256 / 2 ** d, X0 = wx(tx), Y0 = wy(ty);
+    ctx.drawImage(o.img, (tx - ((tx >> d) << d)) * f, (ty - ((ty >> d) << d)) * f, f, f, X0, Y0, wx(tx + 1) - X0 + e, wy(ty + 1) - Y0 + e);
+  }
+}
+function setView(v) { state.view = LAYERS[v] ? v : 'map'; for (const b of $('views').children) b.setAttribute('aria-pressed', b.dataset.v === state.view); $('attr').hidden = state.view === 'map'; try { localStorage.setItem('alive-view', state.view); } catch (e) {} syncURL(); draw(); }
 const rnd = n => { const v = Math.sin(n * 127.1 + 3.3) * 43758.5453; return v - Math.floor(v); };
 const inPoly = (b, x, y) => { if (x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) return false; let c = false; for (const r of b.pg) for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], yi = r[i + 1], xj = r[j], yj = r[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 const insetL = () => { const r = document.querySelector('.rail'); return getComputedStyle(r).position === 'absolute' ? r.offsetLeft + r.offsetWidth : 0; };
@@ -275,6 +304,7 @@ function init(meta, bn, bt, ba, bg) {
   { const seen = new Set(); D.labels = D.labels.filter(l => !seen.has(l[0] + l[3]) && seen.add(l[0] + l[3]) && !/Sanctuary/.test(l[0])); }
   for (const p of D.places) p[4] = norm(p[0]);
   buildUI(); const link = readLink(); if (link && link.on) { state.on = link.on; FEATS.forEach((f, i) => $('pref-' + f.k).setAttribute('aria-pressed', state.on[i])); }
+  { let v = link && link.view; if (!v) try { v = localStorage.getItem('alive-view'); } catch (e) {} if (LAYERS[v]) setView(v); }
   readCss(); resize(); setWeights();
   $('loading').hidden = true;
   let saved = null; try { saved = JSON.parse(localStorage.getItem('alive-v2') || 'null'); } catch (e) {}
@@ -285,7 +315,7 @@ function init(meta, bn, bt, ba, bg) {
   urlLive = true; if (link) syncURL();
   if (link && !ok) $('hint').textContent = 'The walk in that link is outside New York City. Here is another one.';
 }
-// ----- share links: ?a=lat,lon&an=name&b=lat,lon&bn=name, plus r=route and p=preferences when they are not the defaults -----
+// ----- share links: ?a=lat,lon&an=name&b=lat,lon&bn=name, plus r=route, p=preferences and v=view when they are not the defaults -----
 let urlLive = false, shareTimer = 0;
 function toLL(x, y) { return [D.lat0 - y / D.ky, D.lon0 + x / D.kx]; }
 const shareName = p => p.name === 'My location' ? nameNear(p.x, p.y) : p.name;
@@ -295,6 +325,7 @@ function shareURL() {
   q.set('a', pt(A)); q.set('an', shareName(A)); q.set('b', pt(B)); q.set('bn', shareName(B));
   if (state.sel !== 'alive') q.set('r', state.sel);
   if (!state.on.every(Boolean)) q.set('p', state.on.map(v => v ? 1 : 0).join(''));
+  if (state.view !== 'map') q.set('v', state.view);
   return location.origin + location.pathname + '?' + String(q).replace(/%2C/g, ',');
 }
 function syncURL() { $('shareBox').hidden = true; const u = shareURL(); if (urlLive && u) try { history.replaceState(null, '', u); } catch (e) {} }
@@ -302,7 +333,7 @@ function readLink() {
   const q = new URLSearchParams(location.search); if (!q.has('a') || !q.has('b')) return null;
   const pt = k => { const m = /^(-?\d{1,3}(?:\.\d{1,8})?),(-?\d{1,3}(?:\.\d{1,8})?)$/.exec(q.get(k) || ''); if (!m) return { n: -1 }; const [x, y] = toXY(+m[1], +m[2]), nm = (q.get(k + 'n') || '').trim().slice(0, 80); return mk(x, y, nm || nameNear(x, y)); };
   const r = q.get('r'), p = q.get('p');
-  return { A: pt('a'), B: pt('b'), sel: ROUTES.some(o => o.id === r) ? r : 'alive', on: p && /^[01]{6}$/.test(p) ? [...p].map(c => c === '1') : null };
+  return { A: pt('a'), B: pt('b'), sel: ROUTES.some(o => o.id === r) ? r : 'alive', on: p && /^[01]{6}$/.test(p) ? [...p].map(c => c === '1') : null, view: LAYERS[q.get('v')] ? q.get('v') : q.has('a') && q.has('b') ? 'map' : null };
 }
 async function share() {
   const url = shareURL(); if (!url) return;
@@ -340,6 +371,7 @@ function buildUI() {
   $('pickB').onclick = () => setPicking(state.picking === 'B' ? null : 'B');
   $('cards').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.sel = b.dataset.id; state.focus = null; report(); syncURL(); draw(); };
   $('share').onclick = share;
+  $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
   $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.tab = b.dataset.t; state.focus = null; renderMenu(); draw(); };
   $('menu').onclick = e => { const b = e.target.closest('button'); if (!b) return; const r = state.routes[state.sel], it = r && (state.tab === 'dir' ? r.steps : r.items)[+b.dataset.i]; if (!it) return; state.focus = it; const w = cv.clientWidth, h = cv.clientHeight, s = Math.max(view.s, 1); view.s = s; view.x = (w + insetL()) / 2 - s * it.x; view.y = h / 2 - s * it.y; renderMenu(); draw(); };
   wireSearch('A'); wireSearch('B');
@@ -353,7 +385,7 @@ function buildUI() {
     }, () => fail('Location is not available here. Allow it in your browser, or pick the start on the map.'), { enableHighAccuracy: true, timeout: 12000 });
   };
   const s = D.stats;
-  $('about').textContent = `Each of ${E.toLocaleString()} street and path segments (${s.km.toLocaleString()} km in all five boroughs) gets six scores: parks, waterfront, ${s.trees.toLocaleString()} mapped trees, ${s.pois.toLocaleString()} cafés, shops and venues, ${s.districts} historic districts with ${s.landmarks.toLocaleString()} landmarks, and distance from heavy traffic. Alive is the nicest walk that costs at most 12% more time. Most alive may take up to 45% more.`;
+  $('about').textContent = `Each of ${E.toLocaleString()} street and path segments (${s.km.toLocaleString()} km in all five boroughs) gets six scores: parks, waterfront, ${s.trees.toLocaleString()} mapped trees, ${s.pois.toLocaleString()} cafés, shops and venues, ${s.districts} historic districts with ${s.landmarks.toLocaleString()} landmarks, and distance from heavy traffic. Alive is the nicest walk that costs only a few minutes more (at most 15%, or 3 minutes on a short walk). Most alive may take up to two thirds more, so a 30 minute walk can become 50. It only uses that extra time when it buys a nicer walk.`;
   $('zin').onclick = () => zoomAt((cv.clientWidth + insetL()) / 2, cv.clientHeight / 2, 1.5);
   $('zout').onclick = () => zoomAt((cv.clientWidth + insetL()) / 2, cv.clientHeight / 2, 1 / 1.5);
   $('zfit').onclick = () => fit();
@@ -483,6 +515,8 @@ function describe(r, src) {
   r.f = f.map(v => r.len ? v / r.len : 0); r.pts = pts; r.items = items; r.alive = r.len ? Math.round(100 * alive / r.len) : 0; r.min = Math.max(1, Math.round(r.len / WALK));
   return r;
 }
+// How much longer than the fastest walk a route may be, in metres. Alive: 15% more or 3 minutes more, whichever is larger. Most alive: 67% more (30 minutes becomes 50) or 6 minutes more. Very short walks are held to 1.75 and 2.5 times.
+const slack = (len, most) => most ? Math.min(Math.max(len * 1.67, len + 6 * WALK), len * 2.5) : Math.min(Math.max(len * 1.15, len + 3 * WALK), len * 1.75);
 const same = (a, b) => a && b && a.edges.length === b.edges.length && Math.abs(a.len - b.len) < 0.5 && a.edges[0] === b.edges[0];
 function solve(refit) {
   setPicking(null); state.focus = null; state.routes = {};
@@ -491,12 +525,15 @@ function solve(refit) {
   try { localStorage.setItem('alive-v2', JSON.stringify({ A: { x: A.x, y: A.y, name: A.name }, B: { x: B.x, y: B.y, name: B.name } })); } catch (e) {}
   const s = A.n, t = B.n, fast = search(s, t, 0, 0);
   if (!fast) { report('No walking route joins these two points. There is water between them and no bridge on foot.'); draw(); return; }
-  const limA = fast.len * 1.12 + 1, limM = fast.len * 1.45 + 1, ev = [{ lam: 0, r: fast }];
+  const limA = slack(fast.len, 0) + 1, limM = slack(fast.len, 1) + 1, ev = [{ lam: 0, r: fast }];
   const run = lam => { const r = search(s, t, lam, limM) || { edges: [], len: Infinity }; ev.push({ lam, r }); return r; };
   if (state.on.some(Boolean) && fast.len > 0) {
-    if (run(3).len > limM) { let lo = 0, hi = 3; for (let i = 0; i < 7; i++) { const mid = (lo + hi) / 2; if (run(mid).len <= limM) lo = mid; else hi = mid; } }
-    let lo = 0, hi = Infinity; for (const o of ev) { if (o.r.len <= limA) lo = Math.max(lo, o.lam); } for (const o of ev) { if (o.r.len > limA && o.lam > lo) hi = Math.min(hi, o.lam); }
-    if (hi < Infinity) for (let i = 0; i < 5; i++) { const mid = (lo + hi) / 2; if (run(mid).len <= limA) lo = mid; else hi = mid; }
+    // lambda is how hard the search leans toward nice streets. Try stronger and stronger values until the walk gets too long, then home in on each time limit.
+    for (const lam of [1.5, 3, 5, 8]) if (run(lam).len > limM) break;
+    for (const [lim, n] of [[limM, 6], [limA, 5]]) {
+      let lo = 0, hi = Infinity; for (const o of ev) { if (o.r.len <= lim) lo = Math.max(lo, o.lam); } for (const o of ev) { if (o.r.len > lim && o.lam > lo) hi = Math.min(hi, o.lam); }
+      if (hi < Infinity) for (let i = 0; i < n; i++) { const mid = (lo + hi) / 2; if (run(mid).len <= lim) lo = mid; else hi = mid; }
+    }
   }
   const score = r => { let a = 0; for (const e of r.edges) { const [g, b] = goodBad(e); a += el[e] * (Math.min(1, g / 1.1) * 0.75 + (1 - b) * 0.25); } return r.len ? Math.round(100 * a / r.len) : 0; };
   for (const o of ev) if (o.r.len <= limM) o.sc = score(o.r);
@@ -556,27 +593,30 @@ function zoomAt(px, py, k) { const s = Math.min(6, Math.max(0.011, view.s * k));
 let raf = 0; function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
 function paint() {
   if (!D) return; const dpr = window.devicePixelRatio || 1, s = view.s, w = cv.clientWidth, h = cv.clientHeight;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = css.bg; ctx.fillRect(0, 0, cv.width, cv.height);
+  const sat = LAYERS[state.view];
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = sat ? '#20241e' : css.bg; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(s * dpr, 0, 0, s * dpr, view.x * dpr, view.y * dpr);
-  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, D.w, D.h); ctx.clip(); ctx.fillStyle = css['m-water']; ctx.fillRect(0, 0, D.w, D.h);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, D.w, D.h); ctx.clip(); ctx.fillStyle = sat ? '#20241e' : css['m-water']; ctx.fillRect(0, 0, D.w, D.h);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (sat) photo(sat, s, w, h, dpr); else {
   ctx.fillStyle = css['m-out']; ctx.fill(P.land, 'evenodd');
   ctx.save(); ctx.clip(P.boro, 'evenodd'); ctx.fillStyle = css['m-land']; ctx.fill(P.land, 'evenodd'); ctx.restore();
   ctx.fillStyle = css['m-park']; ctx.fill(P.green, 'evenodd');
   ctx.fillStyle = css['m-inwater']; ctx.fill(P.water, 'evenodd');
+  }
   const lw = (m, px) => Math.max(m, px / s), ts = D.ts;
   const tx0 = Math.max(0, Math.floor(-view.x / s / ts) - 1), tx1 = Math.min(D.tw - 1, Math.floor((w - view.x) / s / ts) + 1), ty0 = Math.max(0, Math.floor(-view.y / s / ts) - 1), ty1 = Math.min(D.th - 1, Math.floor((h - view.y) / s / ts) + 1);
   const vis = []; for (let j = ty0; j <= ty1; j++) for (let i = tx0; i <= tx1; i++) { const t = j * D.tw + i; if (D.toff[t + 1] > D.toff[t]) vis.push(tile(t)); }
   const pass = (key, color, width) => { ctx.strokeStyle = color; ctx.lineWidth = width; for (const T of vis) ctx.stroke(T[key]); };
-  if (s > 0.25) { pass('major', css['m-case'], lw(16, 2.2) + 1.6 / s); pass('minor', css['m-case'], lw(9, 1.2) + 1.4 / s); }
-  if (s > 0.045) pass('minor', css['m-street'], lw(9, s > 0.2 ? 1.2 : 0.5));
-  pass('major', css['m-major'], lw(16, s > 0.09 ? 2.2 : s > 0.03 ? 0.9 : 0.6));
-  if (s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));
-  if (s > 1.1) { ctx.globalAlpha = 0.5; pass('side', css['m-path'], lw(1.2, 0.6)); ctx.globalAlpha = 1; }
+  if (!sat && s > 0.25) { pass('major', css['m-case'], lw(16, 2.2) + 1.6 / s); pass('minor', css['m-case'], lw(9, 1.2) + 1.4 / s); }
+  if (!sat && s > 0.045) pass('minor', css['m-street'], lw(9, s > 0.2 ? 1.2 : 0.5));
+  if (!sat) pass('major', css['m-major'], lw(16, s > 0.09 ? 2.2 : s > 0.03 ? 0.9 : 0.6));
+  if (!sat && s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));
+  if (!sat && s > 1.1) { ctx.globalAlpha = 0.5; pass('side', css['m-path'], lw(1.2, 0.6)); ctx.globalAlpha = 1; }
   const line = pts => { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.stroke(); };
   const R = state.routes, sel = R[state.sel];
   // trees: scattered through parks, and lining the leafy stretches of the chosen route
-  if (s > 0.3) {
+  if (!sat && s > 0.3) {
     const tr = Math.min(9, Math.max(4.2, 7 * Math.pow(s, 0.4))) / s, x0 = -view.x / s - 20, y0 = -view.y / s - 20, x1 = (w - view.x) / s + 20, y1 = (h - view.y) / s + 20, set = vis.map(T => T.trees);
     if (sel) { const a = routeTrees(sel), o = Math.max(9, 13 / s), b = new Float32Array(a.length / 5 * 3); for (let i = 0, j = 0; i < a.length; i += 5, j += 3) { b[j] = a[i] + a[i + 2] * o; b[j + 1] = a[i + 1] + a[i + 3] * o; b[j + 2] = a[i + 4]; } set.push(b); }
     const each = (color, fn) => { ctx.fillStyle = color; ctx.beginPath(); for (const a of set) for (let i = 0; i < a.length; i += 3) { const x = a[i], y = a[i + 1]; if (x < x0 || x > x1 || y < y0 || y > y1) continue; fn(x, y, tr * a[i + 2]); } ctx.fill(); };
@@ -676,7 +716,7 @@ function paint() {
     const t = kind ? name.toUpperCase() : name, tw = ctx.measureText(t).width + (kind ? t.length * 0.6 : 0);
     if (!free(x - tw / 2 - 3, y - 8, tw + 6, 16)) continue;
     if (kind && 'letterSpacing' in ctx) ctx.letterSpacing = '0.6px';
-    ctx.lineWidth = 3; ctx.strokeStyle = kind ? css['m-land'] : css['m-park']; ctx.strokeText(t, x, y); ctx.fillStyle = kind === 2 ? css.ink : kind ? css['m-label'] : css['m-plabel']; ctx.fillText(t, x, y);
+    ctx.lineWidth = 3; ctx.strokeStyle = sat ? 'rgba(0,0,0,0.75)' : kind ? css['m-land'] : css['m-park']; ctx.strokeText(t, x, y); ctx.fillStyle = sat ? (kind ? '#ffffff' : '#d9f7c6') : kind === 2 ? css.ink : kind ? css['m-label'] : css['m-plabel']; ctx.fillText(t, x, y);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
 }

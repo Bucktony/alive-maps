@@ -17,6 +17,7 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - Routing is A* in the browser. Edge cost = length x m^lambda, where m = (1 + 1.3 x traffic) / (1 + 1.8 x good).
 - Three routes: Fastest (lambda 0), Alive (best alive score within +12% length), Most alive (best within +45%). The search tries several lambda values up to 3.
 - Place search uses three sources: the built-in `places` list, Photon (photon.komoot.io) for venues, and NYC Planning GeoSearch for addresses. Results outside the borough polygons are dropped.
+- Share links: the address bar always holds a link to the walk on screen, and the "Share this walk" button copies it (on a phone it opens the share sheet). Format: `?a=lat,lon&an=name&b=lat,lon&bn=name`, plus `r=most` or `r=fast` when the chosen route is not Alive, and `p=` six 0/1 digits when a preference chip is off. A link wins over the walk saved in the browser. Links use latitude and longitude, so they still work after a data rebuild.
 
 ## Binary layout (little-endian)
 

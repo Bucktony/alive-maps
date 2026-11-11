@@ -309,13 +309,14 @@ function wireSearch(w) {
     const local = a.concat(b); show(local.slice(0, 7));
     if (!geoOK || q.length < 3) { if (!local.length && !geoOK) show([], NONE); return; }
     timer = setTimeout(() => {
+      const rank = n => { const m = n.replace(/^the/, ''); return m === nq ? 0 : m.startsWith(nq) ? 1 : n.includes(nq) ? 2 : 3; };
       let fails = 0; const qs = [raw]; if (/\s/.test(raw) && raw.length < 30) qs.push(raw.replace(/\s+/g, ''));
-      const ph = Promise.all(qs.map(t => getJSON(PHOTON + encodeURIComponent(t)).catch(() => { fails++; return { features: [] }; }))).then(rs => rs.flatMap(j => j.features || []).filter(f => f.properties.name).map(f => { const pr = f.properties, [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [pr.name + (pr.street ? ' · ' + pr.street : '') + (pr.district || pr.city ? ', ' + (pr.district || pr.city) : ''), 'v', x, y, norm(pr.name)]; }).filter(p => inCity(p[2], p[3])).sort((u, v) => (v[4].includes(nq) ? 1 : 0) - (u[4].includes(nq) ? 1 : 0)));
+      const ph = Promise.all(qs.map(t => getJSON(PHOTON + encodeURIComponent(t)).catch(() => { fails++; return { features: [] }; }))).then(rs => rs.flatMap(j => j.features || []).filter(f => f.properties.name).map(f => { const pr = f.properties, [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [pr.name + (pr.street ? ' · ' + pr.street : '') + (pr.district || pr.city ? ', ' + (pr.district || pr.city) : ''), 'v', x, y, norm(pr.name)]; }).filter(p => inCity(p[2], p[3])).filter((p, i, arr) => arr.findIndex(o => o[4] === p[4] && Math.abs(o[2] - p[2]) < 30 && Math.abs(o[3] - p[3]) < 30) === i).sort((u, v) => rank(u[4]) - rank(v[4]) || u[4].length - v[4].length));
       const ad = getJSON(GEO + encodeURIComponent(raw)).then(j => (j.features || []).map(f => { const [x, y] = toXY(f.geometry.coordinates[1], f.geometry.coordinates[0]); return [nice(String(f.properties.label || f.properties.name).replace(/, NY, USA$/, '')), 'x', x, y]; }).filter(p => inCity(p[2], p[3]))).catch(() => { fails++; return []; });
       Promise.all([ph, ad]).then(([pl, addr]) => {
         if (fails > qs.length) { geoOK = false; $('geoNote').hidden = false; }
         if (my !== token || document.activeElement !== inp) return;
-        const list = /^\d/.test(raw) ? addr.slice(0, 4).concat(pl.slice(0, 2), local.slice(0, 1)) : local.slice(0, 2).concat(pl.slice(0, 4), addr.slice(0, 2));
+        const list = /^\d/.test(raw) ? addr.slice(0, 4).concat(pl.slice(0, 2), local.slice(0, 1)) : local.slice(0, 2).concat(pl.slice(0, 5), addr.slice(0, 2));
         const seen = new Set(); show(list.filter(p => { const k = Math.round(p[2] / 15) + ',' + Math.round(p[3] / 15) + norm(p[0]).slice(0, 6); return !seen.has(k) && seen.add(k); }), NONE);
       });
     }, 220);

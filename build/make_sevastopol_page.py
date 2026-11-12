@@ -35,7 +35,7 @@ swap('placeholder="End: address, venue or place"', 'placeholder="End: улица
 swap('Type a park, station or landmark, or pick on the map.', 'Type a park, beach, pier or landmark, or pick on the map.')
 swap('Limits of this version: it does not know park opening hours, so check before a night walk. Directions are a guide. Follow street signs and signals. Street life uses places mapped in OpenStreetMap, which is not complete.',
      'Limits of this version: the map is only as current as OpenStreetMap, so a path, a gate or an embankment may be closed on the day. Paths inside mapped military land are left out, but not every fence is on the map. Ferries stop in bad weather and when the bay is closed. Few pavements are mapped here, so many walks follow the street itself. Directions are a guide. Follow signs and signals.')
-swap('Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Place search by Photon (Komoot) and NYC Planning GeoSearch.',
+swap('Map data © OpenStreetMap contributors. Trees and landmarks from NYC Open Data. Aerial photos from the City of New York. Place search by Photon (Komoot) and NYC Planning GeoSearch.',
      'Map data © OpenStreetMap contributors. Tree cover from the Global Canopy Height map by Meta and the World Resources Institute. Place search by Photon (Komoot).')
 swap('aria-label="Map of New York City with the fastest route and two alive routes"', 'aria-label="Map of Sevastopol with the fastest route and two alive routes"')
 swap('Loading New York streets…', 'Loading Sevastopol streets…', 2)
@@ -87,13 +87,18 @@ swap("(${s.km.toLocaleString()} km in all five boroughs) gets six scores: parks,
 # ----- ferries: edge kind 7 -----
 swap("T = { path: new Path2D(), side: new Path2D(), minor: new Path2D(), major: new Path2D() };", "T = { path: new Path2D(), side: new Path2D(), minor: new Path2D(), major: new Path2D(), ferry: new Path2D() };")
 swap("const k = ek[e], p = k === 0 ? T.path : k < 3 ? T.side : k === 3 ? T.minor : T.major;", "const k = ek[e], p = k === 7 ? T.ferry : k === 0 ? T.path : k < 3 ? T.side : k === 3 ? T.minor : T.major;")
-swap("  if (s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));", "  if (s > 0.03) { ctx.setLineDash([lw(40, 5), lw(32, 4)]); ctx.lineCap = 'butt'; pass('ferry', css.me, lw(6, 1.4)); ctx.setLineDash([]); ctx.lineCap = 'round'; }\n  if (s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));")
+swap("  if (!sat && s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));", "  if (s > 0.03) { ctx.setLineDash([lw(40, 5), lw(32, 4)]); ctx.lineCap = 'butt'; pass('ferry', css.me, lw(6, 1.4)); ctx.setLineDash([]); ctx.lineCap = 'round'; }\n  if (!sat && s > 0.1) pass('path', css['m-path'], lw(2.2, 0.9));")
 swap("recs.push([ek[e] === 2 ? null : enm[e] ?", "recs.push([ek[e] === 7 ? '\\u26F4' + (enm[e] ? D.names[enm[e] - 1] : 'the ferry') : ek[e] === 2 ? null : enm[e] ?")
 swap("if (!k) text = `Head ${", "if (nm[0] === '\\u26F4') { r.ferry = true; text = `Take the ferry ${nm.slice(1)}`; }\n    else if (!k) text = `Head ${")
 swap("  if (same(R.alive, f) && same(R.most, f)) { $('msg').hidden = false; $('msg').textContent = 'The fastest route is already the nicest one here. Try a longer trip.'; }",
      "  if (same(R.alive, f) && same(R.most, f)) { $('msg').hidden = false; $('msg').textContent = 'The fastest route is already the nicest one here. Try a longer trip.'; }\n  if (R[state.sel].ferry) { $('msg').hidden = false; $('msg').textContent = 'This walk crosses the bay by passenger ferry. The time includes about 5 minutes of waiting. Check that the boats are running today.'; }")
 # ferry steps must not swallow or be swallowed by short neighbours
 swap("if (last && (g.len < 20 || last.name === g.name)) last.len += g.len; else out.push(g);", "if (last && (g.len < 20 || last.name === g.name) && (g.name || '')[0] !== '\\u26F4') last.len += g.len; else out.push(g);")
+
+# ----- aerial photos -----
+# The photo views use the City of New York's own aerial photos, which stop at the city line. Sevastopol has no such source yet, so the switch is hidden and no photo layer is on offer.
+swap('<div class="views" id="views" role="group" aria-label="Map view">', '<div class="views" id="views" role="group" aria-label="Map view" hidden>')
+swap("const LAYERS = { '2024': 'NYC_Orthos_2024', '1951': 'NYC_Orthos_1951', '1924': 'Ortho_1924_Mosaic' },", "const LAYERS = {},")
 
 # ----- beaches -----
 swap("for (const ts of ['P', 'DW', 'lm', 'c', 'avtk'])", "for (const ts of ['P', 'DW', 'lm', 'c', 'bavtk'])")

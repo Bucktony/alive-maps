@@ -62,6 +62,7 @@ Page: `/sevastopol/` on the live site. Everything for it is in the `sevastopol/`
 - Courtyard service roads are kept as walkable, because few pavements are mapped. Motorway-class (trunk) roads are not walkable.
 - Address search uses Photon only. The saved walk uses its own browser key, so it does not mix with New York.
 - Beaches are a kind of stop.
+- There are no aerial photo views. The New York photos stop at the city line and Sevastopol has no free source like them yet, so the Map / Satellite switch is hidden there.
 
 ### Numbers
 

@@ -108,7 +108,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
   .app { height: auto; overflow: visible; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px)); }
   .rail { display: contents; }
   .mapwrap { position: relative; inset: auto; height: 62vh; min-height: 320px; order: 2; border-radius: 22px; box-shadow: var(--shadow); }
-  .b-top { order: 1; } .b-res { order: 3; } .b-menu { order: 4; } .b-pref { order: 5; } .b-about { order: 6; }
+  .b-top { order: 1; } .b-res { order: 3; } .b-me { order: 4; } .b-menu { order: 5; } .b-pref { order: 6; } .b-about { order: 7; }
   .menu { max-height: none; }
   #attr:not([hidden]) + #hint { display: none; }
 }
@@ -151,6 +151,26 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 .sugg .none { padding: 9px 12px; color: var(--muted); font-size: 12.5px; }
 .sharerow { display: flex; flex-direction: column; gap: 8px; }
 .share { width: 100%; border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 12px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.acts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.share.alt { background: var(--surface); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); padding-inline: 22px; }
+.pay { margin: 0; font-size: 13px; color: var(--muted); }
+.pay b { color: var(--ink); font-weight: 700; }
+.me { display: flex; flex-direction: column; gap: 10px; }
+.me .big { font-family: var(--display); font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.me .big small { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.me .stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.me .stats span { background: var(--bg); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--muted); }
+.me .bar { height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.me .bar i { display: block; height: 100%; border-radius: 999px; background: var(--m-tree); min-width: 4px; }
+.me .log { list-style: none; margin: 0; padding: 0; }
+.me .log li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; }
+.me .log li + li { border-top: 1px solid var(--line); }
+.me .log a { color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me .log a:hover { color: var(--accent); text-decoration: underline; }
+.me .log small { display: block; color: var(--muted); font-size: 11.5px; }
+.me .log b { font-variant-numeric: tabular-nums; color: var(--accent); }
+.me .log button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
+.me .log button:hover { color: var(--warn); background: var(--bg); }
 .share:disabled { opacity: 0.45; cursor: default; }
 .sharerow input { width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 8px 10px; font-size: 12.5px; }
 </style>
@@ -177,10 +197,16 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
     <section class="block b-res" id="results" aria-live="polite">
       <h2>Pick your route</h2>
       <div class="cards" id="cards"></div>
-      <div class="sharerow"><button class="share" id="share" type="button" disabled>Share this walk</button><input id="shareBox" readonly hidden aria-label="Link to this walk"></div>
+      <p class="pay" id="pay" hidden></p>
+      <div class="sharerow"><div class="acts"><button class="share" id="did" type="button" disabled>I walked it</button><button class="share alt" id="share" type="button" disabled>Share</button></div><input id="shareBox" readonly hidden aria-label="Link to this walk"></div>
       <p class="note w" id="msg" hidden></p>
       <table class="cmp" id="cmp"></table>
       <p class="note">Share of each walk. For heavy traffic, lower is better.</p>
+    </section>
+
+    <section class="block b-me">
+      <h2>Your beauty points</h2>
+      <div class="me" id="me"></div>
     </section>
 
     <section class="block b-menu">
@@ -335,12 +361,45 @@ function readLink() {
   const r = q.get('r'), p = q.get('p');
   return { A: pt('a'), B: pt('b'), sel: ROUTES.some(o => o.id === r) ? r : 'alive', on: p && /^[01]{6}$/.test(p) ? [...p].map(c => c === '1') : null, view: LAYERS[q.get('v')] ? q.get('v') : q.has('a') && q.has('b') ? 'map' : null };
 }
+// what the chosen walk earns, in words: used on the page and when sharing
+function payoff() {
+  const R = state.routes, r = R[state.sel], f = R.fast; if (!r || !f) return null;
+  const more = f.alive && r.alive > f.alive ? Math.round((r.alive / f.alive - 1) * 100) : 0, o = ROUTES.find(o => o.id === state.sel);
+  return { r, o, more, nat: Math.round(r.nat / WALK), best: R.most.bp > r.bp ? R.most : null };
+}
 async function share() {
-  const url = shareURL(); if (!url) return;
-  const say = t => { $('share').textContent = t; clearTimeout(shareTimer); shareTimer = setTimeout(() => { $('share').textContent = 'Share this walk'; }, 2200); };
-  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'Alive Maps NYC', text: `Walk from ${shareName(state.A)} to ${shareName(state.B)}`, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(url); say('Link copied ✓'); }
-  catch (e) { const b = $('shareBox'); b.value = url; b.hidden = false; b.focus(); b.select(); say('Copy the link below'); }
+  const url = shareURL(), p = payoff(); if (!url || !p) return;
+  const say = t => { $('share').textContent = t; clearTimeout(shareTimer); shareTimer = setTimeout(() => { $('share').textContent = 'Share'; }, 2200); };
+  const text = `I took the ${p.o.name} walk from ${shareName(state.A)} to ${shareName(state.B)}: ${p.r.bp} beauty points` + (p.more ? `, ${p.more}% more alive than the fastest way.` : '.');
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'Alive Maps NYC', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text + ' ' + url); say('Copied ✓'); }
+  catch (e) { const b = $('shareBox'); b.value = url; b.hidden = false; b.focus(); b.select(); say('Copy below'); }
+}
+// ----- beauty points: walks you say you took, kept in this browser -----
+const WALKS = 'alive-walks';
+const walks = () => { try { const a = JSON.parse(localStorage.getItem(WALKS) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+let didTimer = 0;
+function logWalk() {
+  const p = payoff(), url = shareURL(); if (!p || !url) return;
+  const say = t => { $('did').textContent = t; clearTimeout(didTimer); didTimer = setTimeout(report, 2400); };
+  const list = walks(), last = list[0];
+  if (last && last.u === url && Date.now() - last.t < 10 * 60000) return say('Already logged');
+  list.unshift({ t: Date.now(), a: shareName(state.A), b: shareName(state.B), r: p.o.name, min: p.r.min, m: Math.round(p.r.len), bp: p.r.bp, nat: Math.round(p.r.nat), u: url });
+  try { localStorage.setItem(WALKS, JSON.stringify(list.slice(0, 500))); } catch (e) { return say('This browser will not save walks'); }
+  renderMe(); say(`Logged ✓ +${p.r.bp} points`);
+}
+function renderMe() {
+  const list = walks(), day = t => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }, DAY = 864e5;
+  if (!list.length) { $('me').innerHTML = '<p class="note">Take a walk, then tap “I walked it”. Each walk earns beauty points: 1 for every 10 metres, scaled by how alive the route is. A nicer route earns more than a faster one.</p>'; return; }
+  const total = list.reduce((a, w) => a + w.bp, 0), m = list.reduce((a, w) => a + w.m, 0), days = new Set(list.map(w => day(w.t)));
+  let streak = 0, d = day(Date.now()); if (!days.has(d)) d = day(d - DAY / 2); while (days.has(d)) { streak++; d = day(d - DAY / 2); }
+  const now = new Date(), week = day(Date.now()) - ((now.getDay() + 6) % 7) * DAY, nat = Math.round(list.filter(w => w.t >= week).reduce((a, w) => a + w.nat, 0) / WALK);
+  $('me').innerHTML = `<div class="big">${total.toLocaleString()} <small>beauty points</small></div>
+    <div class="stats"><span>${list.length} walk${list.length > 1 ? 's' : ''}</span><span>${(m / 1000).toFixed(1)} km</span>${streak > 1 ? `<span>${streak} day streak</span>` : ''}</div>
+    <div class="bar" role="img" aria-label="${nat} of 120 minutes in nature this week"><i style="width:${Math.min(100, nat / 1.2)}%"></i></div>
+    <p class="note"><b>${nat} of 120 min in nature this week.</b> People who spend about 120 minutes a week in nature report better health and wellbeing (White and others, 2019). This counts the park, waterfront and tree-lined parts of walks you logged.</p>
+    <ul class="log">${list.slice(0, 5).map(w => `<li><a href="${esc(w.u)}" title="Open this walk">${esc(w.a)} to ${esc(w.b)}<small>${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${esc(w.r)} · ${w.min} min</small></a><b>+${w.bp}</b><button type="button" data-t="${w.t}" aria-label="Remove this walk" title="Remove this walk">×</button></li>`).join('')}</ul>
+    <p class="note">Saved in this browser only, and it takes your word that you walked it.</p>`;
 }
 const feat = (e, k) => { const b = f3[e * 3 + (k >> 1)]; return k & 1 ? b & 15 : b >> 4; };
 function edgeXY(e, fwd, out) {
@@ -370,7 +429,8 @@ function buildUI() {
   $('pickA').onclick = () => setPicking(state.picking === 'A' ? null : 'A');
   $('pickB').onclick = () => setPicking(state.picking === 'B' ? null : 'B');
   $('cards').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.sel = b.dataset.id; state.focus = null; report(); syncURL(); draw(); };
-  $('share').onclick = share;
+  $('share').onclick = share; $('did').onclick = logWalk; renderMe();
+  $('me').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b) return; try { localStorage.setItem(WALKS, JSON.stringify(walks().filter(w => String(w.t) !== b.dataset.t))); } catch (e) {} renderMe(); };
   $('views').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
   $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.tab = b.dataset.t; state.focus = null; renderMenu(); draw(); };
   $('menu').onclick = e => { const b = e.target.closest('button'); if (!b) return; const r = state.routes[state.sel], it = r && (state.tab === 'dir' ? r.steps : r.items)[+b.dataset.i]; if (!it) return; state.focus = it; const w = cv.clientWidth, h = cv.clientHeight, s = Math.max(view.s, 1); view.s = s; view.x = (w + insetL()) / 2 - s * it.x; view.y = h / 2 - s * it.y; renderMenu(); draw(); };
@@ -476,11 +536,12 @@ function search(src, dst, lam, lim) {
   edges.reverse(); return { edges, len };
 }
 function describe(r, src) {
-  const f = [0, 0, 0, 0, 0, 0], pts = [], cum = [], items = []; let u = src, alive = 0, at = 0;
+  const f = [0, 0, 0, 0, 0, 0], pts = [], cum = [], items = []; let u = src, alive = 0, at = 0, nat = 0;
   const runs = { P: new Map(), D: new Map() }; let wrun = null; const recs = [];
   for (const e of r.edges) {
     const L = el[e]; for (let k = 0; k < 6; k++) f[k] += L * feat(e, k) / 9;
     const [g, b] = goodBad(e); alive += L * Math.min(1, g / 1.1) * 0.75 + L * (1 - b) * 0.25;
+    if (feat(e, 0) >= 5 || feat(e, 1) >= 5 || feat(e, 2) >= 5) nat += L;
     const fwd = ea[e] === u, i0 = pts.length; edgeXY(e, fwd, pts);
     const x0 = pts[i0], y0 = pts[i0 + 1];
     recs.push([ek[e] === 2 ? null : enm[e] ? D.names[enm[e] - 1] : epark[e] ? 'the path through ' + D.parks[epark[e] - 1] : 'the footpath', L, i0 / 2, at]);
@@ -512,7 +573,7 @@ function describe(r, src) {
       text = ad < 25 ? `Continue onto ${nm}` : ad < 60 ? `Bear ${side} onto ${nm}` : ad < 150 ? `Turn ${side} onto ${nm}` : `Turn around onto ${nm}`; }
     return { name: text, extra: km(g.len), at: g.at, x, y, t: 'S' }; });
   if (np) r.steps.push({ name: 'Arrive at ' + (state.B ? state.B.name : 'the end'), at: r.len, x: pts[pts.length - 2], y: pts[pts.length - 1], t: 'S' });
-  r.f = f.map(v => r.len ? v / r.len : 0); r.pts = pts; r.items = items; r.alive = r.len ? Math.round(100 * alive / r.len) : 0; r.min = Math.max(1, Math.round(r.len / WALK));
+  r.f = f.map(v => r.len ? v / r.len : 0); r.pts = pts; r.items = items; r.alive = r.len ? Math.round(100 * alive / r.len) : 0; r.bp = Math.round(alive / 10); r.nat = nat; r.min = Math.max(1, Math.round(r.len / WALK));
   return r;
 }
 // How much longer than the fastest walk a route may be, in metres. Alive: 15% more or 3 minutes more, whichever is larger. Most alive: 67% more (30 minutes becomes 50) or 6 minutes more. Very short walks are held to 1.75 and 2.5 times.
@@ -546,11 +607,13 @@ function km(m) { return m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).t
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function report(msg) {
   const R = state.routes, f = R.fast;
-  $('msg').hidden = !msg; $('msg').textContent = msg || ''; $('share').disabled = !f;
+  $('msg').hidden = !msg; $('msg').textContent = msg || ''; $('share').disabled = $('did').disabled = !f; $('pay').hidden = !f; $('did').textContent = 'I walked it';
   if (!f) { $('cards').innerHTML = ROUTES.map(o => `<button type="button" class="card ${o.id}" disabled><span class="k">${o.name}</span><span class="v">–</span><span class="d">&nbsp;</span></button>`).join(''); $('cmp').innerHTML = ''; $('tabs').innerHTML = ''; $('menu').innerHTML = ''; return; }
   $('cards').innerHTML = ROUTES.map(o => { const r = R[o.id], extra = r.min - f.min;
     const note = o.id === 'fast' ? km(r.len) : same(r, f) ? 'Same as fastest' : o.id === 'most' && same(r, R.alive) ? 'Same as Alive' : `+${extra} min · ${km(r.len)}`;
     return `<button type="button" class="card ${o.id}" id="card-${o.id}" data-id="${o.id}" aria-pressed="${state.sel === o.id}" title="${o.blurb}"><span class="k">${o.name}</span><span class="v">${r.min} <small>min</small></span><span class="d">${note}</span><span class="d">Alive score ${r.alive}</span></button>`; }).join('');
+  { const p = payoff(); $('did').textContent = `I walked it · +${p.r.bp} points`;
+    $('pay').innerHTML = `<b>${p.r.bp} beauty points</b>` + (p.more ? ` · <b>${p.more}% more alive</b> than the fastest way` : p.best ? ` · the Most alive walk earns ${p.best.bp}` : '') + (p.nat ? ` · ${p.nat} min in nature` : ''); }
   if (same(R.alive, f) && same(R.most, f)) { $('msg').hidden = false; $('msg').textContent = 'The fastest route is already the nicest one here. Try a longer trip.'; }
   const pc = v => Math.round(v * 100);
   $('cmp').innerHTML = `<thead><tr><th></th>${ROUTES.map(o => `<th class="${state.sel === o.id ? 'sel' : ''}">${o.name}</th>`).join('')}</tr></thead><tbody>` + FEATS.map((ft, k) => `<tr><td>${ft.short}</td>${ROUTES.map(o => `<td class="${o.id}${state.sel === o.id ? ' sel' : ''}">${pc(R[o.id].f[k])}%<i style="width:${Math.max(3, pc(R[o.id].f[k]))}%"></i></td>`).join('')}</tr>`).join('') + '</tbody>';

@@ -98,7 +98,7 @@ swap("if (last && (g.len < 20 || last.name === g.name)) last.len += g.len; else 
 # ----- aerial photos -----
 # The photo views use the City of New York's own aerial photos, which stop at the city line. Sevastopol has no such source yet, so the switch is hidden and no photo layer is on offer.
 swap('<div class="views" id="views" role="group" aria-label="Map view">', '<div class="views" id="views" role="group" aria-label="Map view" hidden>')
-swap("const LAYERS = { '2024': 'NYC_Orthos_2024', '1951': 'NYC_Orthos_1951', '1924': 'Ortho_1924_Mosaic' },", "const LAYERS = {},")
+swap("const LAYERS = { '2024': 'NYC_Orthos_2024', '2006': 'NYC_Orthos_2006', '1996': 'Ortho_1996_Mosaic', '1951': 'NYC_Orthos_1951', '1924': 'Ortho_1924_Mosaic' },", "const LAYERS = {},")
 
 # ----- beaches -----
 swap("for (const ts of ['P', 'DW', 'lm', 'c', 'avtk'])", "for (const ts of ['P', 'DW', 'lm', 'c', 'bavtk'])")

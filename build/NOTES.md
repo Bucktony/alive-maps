@@ -8,7 +8,7 @@ Live site: https://alive-maps-chi.vercel.app/ (Vercel deploys every commit to `m
 - `meta.json`: map shapes (land, parks, water), place names, street names, sights, tile index.
 - `nodes.b64.txt`, `topo.b64.txt`, `attr.b64.txt`, `geom.b64.txt`: the street graph, as base64 text of binary arrays.
 - `build/build_nyc.py`: the script that makes the five data files from raw data.
-- City picker: the "Select where you are" menu beside the logo lists New York and Sevastopol. Each option's value is the address of that city's page. To add a city, add an `<option>` in `index.html` and a matching swap in `build/make_sevastopol_page.py`.
+- City picker: the "Select where you are" menu beside the logo lists New York, Sevastopol and Warsaw. Each option's value is the address of that city's page. To add a city, see "Adding another city" below.
 - `og.png`: the picture shown when a link to the site is pasted into X, iMessage or Slack (1200 x 630). It is a screenshot of the app. Retake it after a visual change.
 - `build/NOTES.md`: this file.
 
@@ -54,7 +54,7 @@ Page: `/sevastopol/` on the live site. Everything for it is in the `sevastopol/`
 
 ### What is different from New York
 
-- `sevastopol/index.html` is made from the New York `index.html` by `build/make_sevastopol_page.py`. Do not edit it by hand. Change `index.html`, or change the swaps in that script, then run `python3 build/make_sevastopol_page.py` from the repository root. If a swap no longer matches, the script stops and names it.
+- `sevastopol/index.html` is made from the New York `index.html` by `build/make_city_pages.py`. Do not edit it by hand. Change `index.html`, or change the swaps in that script, then run `python3 build/make_city_pages.py` from the repository root. If a swap no longer matches, the script stops and names it.
 - Street and place names are the local OpenStreetMap names, so they are in Russian, as on the street signs. Places that have an English name in OpenStreetMap can also be found by that name. The page text is in English.
 - There is no tree census, so the tree score is the share of ground under tree canopy (3 m or taller) within about 17 m of the street, from the Meta and WRI Global Canopy Height map.
 - There is no city register of landmarks. Landmarks are OpenStreetMap `historic` features (monuments, memorials, forts, ruins, the Chersonesus site). The 26 named historic sites with a mapped outline take the place of historic districts.
@@ -71,14 +71,34 @@ Page: `/sevastopol/` on the live site. Everything for it is in the `sevastopol/`
 
 ### How to rebuild the data
 
-Unlike New York, every input is public, so the build can be run anywhere. It needs Python with `osmium`, `shapely` 2, `numpy` and `rasterio`.
+Unlike New York, every input is public, so the build can be run anywhere. It needs Python with `osmium`, `shapely` 2, `numpy`, `rasterio` and `mercantile`. The same three scripts build every city in `build/cities.py`; the first word after the script name is the city.
 
 1. Download `https://download.openstreetmap.fr/extracts/europe/ukraine/sevastopol-latest.osm.pbf` (7 MB, updated daily). The Geofabrik Crimea file has the same data.
-2. `python3 build/extract_sevastopol.py sevastopol-latest.osm.pbf sev_raw.json`
-3. Download the four canopy tiles (870 MB) named at the top of `build/canopy_sevastopol.py`, then `python3 build/canopy_sevastopol.py <tile folder> canopy.npz`. The canopy map does not change, so this step is only needed once.
-4. `python3 build/build_sevastopol.py sev_raw.json canopy.npz sevastopol/`
+2. `python3 build/extract_city.py sevastopol sevastopol-latest.osm.pbf sev_raw.json`
+3. `python3 build/canopy_city.py sevastopol` prints the canopy tiles to download (four, 870 MB). Then `python3 build/canopy_city.py sevastopol <tile folder> canopy.npz`. The canopy map does not change, so this step is only needed once.
+4. `python3 build/build_city.py sevastopol sev_raw.json canopy.npz sevastopol/`
 5. Open the page and try the six sample walks. Retake `sevastopol/og.png` (1200 x 630) after a visual change.
 
-### Using this for another city
+## Warsaw
 
-The three Sevastopol scripts are the template for a city that has only OpenStreetMap. Change the bounding box and the boundary relation id in the extract script, the canopy tile names, and the city text and sample walks in `make_sevastopol_page.py`. The coastline step in `build_sevastopol.py` (carrying the open ends of the coast to the map edge) is specific to this coast and needs a look for each new city.
+Page: `/warsaw/` on the live site, in the `warsaw/` folder. It is built the same way as Sevastopol, from OpenStreetMap and the canopy map, and covers the whole city boundary (all 18 districts, both banks of the Vistula).
+
+- Street and place names are in Polish. Search ignores Polish accents, so "lazienki" finds Łazienki Królewskie.
+- Warsaw has very detailed pavements and footpaths in OpenStreetMap, so walks follow real pavements far more than in Sevastopol.
+- Underground passages are kept, because they are the normal way across the big junctions in the centre.
+- There are no ferries in the graph. The Vistula ferries run only on summer days.
+- There are no aerial photo views (no Satellite and no Historical menu), as agreed. Poland's national geoportal has free aerial photos if a Satellite view is wanted later.
+- Landmarks and historic sites come from OpenStreetMap `historic` tags, as in Sevastopol.
+
+Numbers: 383,516 nodes and 517,714 edges, 13,862 km of streets and paths. 23,208 cafés, shops and venues. 1,813 monuments and memorials, 55 historic sites. About 18% of street length is under tree canopy. The five data files are 19 MB together (6 MB when the server compresses them).
+
+To rebuild: download `https://download.bbbike.org/osm/bbbike/Warsaw/Warsaw.osm.pbf` (124 MB), then run the same three steps as Sevastopol with `warsaw` as the city name and `warsaw/` as the output folder. The canopy step needs two tiles (1 GB).
+
+## Adding another city
+
+1. Add the city to `build/cities.py` (map edges, the id of its boundary on openstreetmap.org).
+2. Download an OpenStreetMap extract that covers it and run the three build steps above into a new folder named after the city.
+3. Add the city's text and six sample walks to `CITIES` in `build/make_city_pages.py`, add an `<option>` for it to the city picker in `index.html` and to `PICKER` in that script, then run the script.
+4. Try the sample walks in a browser and take the `og.png`.
+
+A city on the sea needs a look at the coastline step in `build_city.py`: where the extract cuts the coast, the open ends are carried to the map edge in directions chosen for Sevastopol.

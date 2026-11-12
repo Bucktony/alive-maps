@@ -1,13 +1,14 @@
-"""Step 1 of the Sevastopol build: pull what the app needs out of an OpenStreetMap extract.
+"""Step 1 of a city build: pull what the app needs out of an OpenStreetMap extract.
 
-Usage: python3 extract_sevastopol.py sevastopol.osm.pbf sev_raw.json
-Input: https://download.openstreetmap.fr/extracts/europe/ukraine/sevastopol-latest.osm.pbf
-       (the Geofabrik Crimea file works too, it is just bigger). Needs osmium and shapely.
+Usage: python3 extract_city.py <city> <extract.osm.pbf> <raw.json>      (city is a name from cities.py)
+Extracts: Sevastopol  https://download.openstreetmap.fr/extracts/europe/ukraine/sevastopol-latest.osm.pbf
+          Warsaw      https://download.bbbike.org/osm/bbbike/Warsaw/Warsaw.osm.pbf
+Needs osmium and shapely.
 """
 import osmium, json, sys, time, base64
 import shapely.wkb
-BB = (44.37, 33.36, 44.86, 33.95)          # south, west, north, east
-CITY_REL = 1574364                         # OSM relation of the city boundary
+from cities import CITIES
+CITY = CITIES[sys.argv[1]]; BB = CITY['bb']; CITY_REL = CITY['boundary']
 def inbb(lat, lon): return BB[0] <= lat <= BB[2] and BB[1] <= lon <= BB[3]
 fab = osmium.geom.WKBFactory()
 AM = {'cafe', 'restaurant', 'bar', 'pub', 'ice_cream', 'fast_food', 'theatre', 'cinema', 'marketplace', 'biergarten',
@@ -90,9 +91,9 @@ class H(osmium.SimpleHandler):
         if 'name:en' in t: d['en'] = t['name:en']
         s.areas.append(d)
 t0 = time.time()
-h = H(); h.apply_file(sys.argv[1], locations=True)
+h = H(); h.apply_file(sys.argv[2], locations=True)
 print('parsed %.0fs' % (time.time() - t0), 'pois', len(h.pois), 'ways', len(h.ways), 'areas', len(h.areas), 'coast', len(h.coast), 'trees', len(h.trees), 'rows', len(h.rows), flush=True)
 import collections
 print(collections.Counter(a['k'] for a in h.areas))
-with open(sys.argv[2], 'w') as f: json.dump({'bb': BB, 'pois': h.pois, 'ways': h.ways, 'areas': h.areas, 'coast': h.coast, 'trees': h.trees, 'rows': h.rows}, f, separators=(',', ':'), ensure_ascii=False)
+with open(sys.argv[3], 'w') as f: json.dump({'bb': BB, 'pois': h.pois, 'ways': h.ways, 'areas': h.areas, 'coast': h.coast, 'trees': h.trees, 'rows': h.rows}, f, separators=(',', ':'), ensure_ascii=False)
 print('done %.0fs' % (time.time() - t0), flush=True)

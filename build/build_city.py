@@ -1,11 +1,11 @@
-"""Step 3 of the Sevastopol build: make the five data files the app loads.
+"""Step 3 of a city build: make the five data files the app loads.
 
-Usage: python3 build_sevastopol.py sev_raw.json canopy.npz ../sevastopol/
-Inputs come from extract_sevastopol.py and canopy_sevastopol.py. Needs numpy and shapely 2.
+Usage: python3 build_city.py <city> <raw.json> <canopy.npz> <output folder>
+Inputs come from extract_city.py and canopy_city.py. Needs numpy and shapely 2.
 Same file formats as build_nyc.py. What is different from New York:
   - trees come from a satellite canopy grid, not a tree census
   - landmarks and historic sites come from OpenStreetMap "historic" tags, not a city register
-  - the passenger ferries across the bay are in the graph (edge kind 7)
+  - short passenger ferries can be part of the graph (edge kind 7, see cities.py)
   - paths inside mapped military land are left out
   - courtyard service roads are kept, because few pavements are mapped
 """
@@ -19,11 +19,13 @@ from shapely.strtree import STRtree
 
 T0 = time.time()
 def log(*a): print('[%5.0fs]' % (time.time() - T0), *a, flush=True)
-RAW, CANOPY, OUT = sys.argv[1], sys.argv[2], sys.argv[3].rstrip('/') + '/'
+from cities import CITIES
+CITY = CITIES[sys.argv[1]]
+RAW, CANOPY, OUT = sys.argv[2], sys.argv[3], sys.argv[4].rstrip('/') + '/'
 d = json.load(open(RAW))
 BB = d['bb']
 LAT0, LON0 = BB[2], BB[1]
-KX = 111320 * math.cos(math.radians(44.6)); KY = 111130.0
+KX = 111320 * math.cos(math.radians(CITY['lat_mid'])); KY = CITY['ky']
 def px(lon): return (np.asarray(lon, dtype=float) - LON0) * KX
 def py(lat): return (LAT0 - np.asarray(lat, dtype=float)) * KY
 def proj_geom(g): return shapely.transform(g, lambda c: np.column_stack([px(c[:, 0]), py(c[:, 1])]))
@@ -47,8 +49,8 @@ STREET = {'residential': 3, 'living_street': 3, 'unclassified': 3, 'service': 3,
 PATHS = {'footway', 'path', 'pedestrian', 'steps', 'bridleway', 'track', 'cycleway', 'crossing'}
 TRAFFIC_W = {'motorway': 1.0, 'motorway_link': 0.9, 'trunk': 1.0, 'trunk_link': 0.9, 'primary': 0.75,
              'primary_link': 0.6, 'secondary': 0.5, 'secondary_link': 0.4, 'tertiary': 0.25, 'tertiary_link': 0.2}
-FERRY = 7; FERRY_MAX = 2100; FERRY_WAIT = 400     # only the short cross-bay boats (the seasonal beach boats are longer); boarding counts as 400 m (5 min)
-FERRY_SKIP = ('Инкерман',)                        # the Inkerman boat sails only a few times a day
+FERRY = 7; FERRY_MAX = CITY['ferry_max']; FERRY_WAIT = 400     # boarding a ferry counts as 400 m (5 min)
+FERRY_SKIP = CITY['ferry_skip']
 def neg(v):
     try: return float(str(v).split(';')[0]) < 0
     except Exception: return False
@@ -300,6 +302,7 @@ for lat, lon, t in d['pois']:
 lc = edge_mean(count_within(shapely.points(lx, ly), 28, lw))
 log('lively pois', len(lx), 'sights', len(sights), 'landmarks', len(lms))
 
+if len(hist_areas) > 255: hist_areas = sorted(hist_areas, key=lambda z: -z[0].area)[:255]     # the site id is one byte
 hds = [g for g, _ in hist_areas]; hd_names = [n for _, n in hist_areas]
 lm_xy = np.array(list(lm_w.keys()), dtype=float); lm_wt = np.array(list(lm_w.values()))
 in_hd = within_any(hds)
@@ -345,8 +348,9 @@ enm = np.array([nidx.get(n, 0) for n in ename], dtype='<u2')
 log('names', len(names), 'edges named', (enm > 0).mean())
 
 # ---------- basemap ----------
-# the extract stops at the city boundary, so the open ends of the coastline are carried on to the map edge:
-# the northern end goes straight north, the south-eastern end goes straight east
+# Sevastopol: the extract stops at the city boundary, so the open ends of the coastline are carried on to the map
+# edge: the northern end goes straight north, the south-eastern end goes straight east.
+# A city with no sea coast has no coastline here, and the whole map is land.
 merged = linemerge(coast)
 parts = list(merged.geoms) if hasattr(merged, 'geoms') else [merged]
 closers = []

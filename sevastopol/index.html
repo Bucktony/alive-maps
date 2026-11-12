@@ -183,7 +183,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 <div class="app">
   <div class="rail">
     <section class="block b-top">
-      <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 3.5 3 10.6l7.2 2.2 2.2 7.2z"/></svg></span><h1>Alive Maps</h1><select class="city" id="city" aria-label="Select where you are" title="Select where you are"><optgroup label="Select where you are"><option value="../">New York</option><option value="./" selected>Sevastopol</option></optgroup></select><span class="tag">Beta</span></div>
+      <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 3.5 3 10.6l7.2 2.2 2.2 7.2z"/></svg></span><h1>Alive Maps</h1><select class="city" id="city" aria-label="Select where you are" title="Select where you are"><optgroup label="Select where you are"><option value="../">New York</option><option value="./" selected>Sevastopol</option><option value="../warsaw/">Warsaw</option></optgroup></select><span class="tag">Beta</span></div>
       <p class="sub">Walking directions for a more alive journey: parks, sea views, trees, old stones and streets with life, for a few minutes more.</p>
       <div class="od">
         <div class="fields">
@@ -457,7 +457,7 @@ function buildUI() {
 }
 const TYPE = { p: 'Park', s: 'Station', f: 'Pier', b: 'Beach', l: 'Landmark', n: 'Area', a: 'Place', x: 'Address', v: 'Place' };
 const PHOTON = 'https://photon.komoot.io/api/?limit=5&bbox=33.36,44.37,33.95,44.86&q=';
-const norm = t => t.toLowerCase().replace(/ё/g, 'е').normalize('NFD').replace(/[^\p{L}\p{N}]/gu, '');
+const norm = t => t.toLowerCase().replace(/ё/g, 'е').replace(/ł/g, 'l').normalize('NFD').replace(/[^\p{L}\p{N}]/gu, '');
 function wireSearch(w) {
   const inp = $('in' + w), field = $('field' + w); let box = null, items = [], hi = 0;
   const close = () => { if (box) { box.remove(); box = null; } };

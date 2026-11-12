@@ -98,6 +98,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 .zoom button { width: 38px; height: 38px; border: 0; background: transparent; font-size: 18px; cursor: pointer; }
 .views { position: absolute; right: 64px; top: 14px; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
 .views button { border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.views .then { align-self: center; font-size: 11.5px; color: var(--muted); padding: 0 2px 0 8px; border-left: 1px solid var(--line); margin-left: 4px; white-space: nowrap; }
 .views button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
 .zoom button + button { border-top: 1px solid var(--line); }
 .hint { position: absolute; left: 14px; bottom: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 8px; align-items: flex-end; pointer-events: none; font-size: 12px; }
@@ -110,6 +111,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
   .mapwrap { position: relative; inset: auto; height: 62vh; min-height: 320px; order: 2; border-radius: 22px; box-shadow: var(--shadow); }
   .b-top { order: 1; } .b-res { order: 3; } .b-me { order: 4; } .b-menu { order: 5; } .b-pref { order: 6; } .b-about { order: 7; }
   .menu { max-height: none; }
+  .views .then { display: none; }
   #attr:not([hidden]) + #hint { display: none; }
 }
 
@@ -230,7 +232,7 @@ canvas.drag { cursor: grabbing; } canvas.picking { cursor: crosshair; }
 
   <div class="mapwrap">
     <canvas id="map" aria-label="Map of New York City with the fastest route and two alive routes"></canvas>
-    <div class="views" id="views" role="group" aria-label="Map view"><button type="button" data-v="map" aria-pressed="true">Map</button><button type="button" data-v="2024" aria-pressed="false">Satellite</button><button type="button" data-v="1951" aria-pressed="false" title="Aerial photos from 1951">1951</button><button type="button" data-v="1924" aria-pressed="false" title="Aerial photos from 1924">1924</button></div>
+    <div class="views" id="views" role="group" aria-label="Map view"><button type="button" data-v="map" aria-pressed="true">Map</button><button type="button" data-v="2024" aria-pressed="false" title="New York photographed from the air in 2024">Satellite</button><span class="then">From the air in</span><button type="button" data-v="1951" aria-pressed="false" title="New York photographed from the air in 1951">1951</button><button type="button" data-v="1924" aria-pressed="false" title="New York photographed from the air in 1924">1924</button></div>
     <div class="zoom"><button id="zin" type="button" aria-label="Zoom in">+</button><button id="zout" type="button" aria-label="Zoom out">−</button><button id="zfit" type="button" aria-label="Fit route" title="Fit route">◎</button></div>
     <div class="hint"><span id="attr" hidden>Aerial photos: City of New York</span><span id="hint">Drag to move. Scroll or pinch to zoom. Tap a stop to see what it is.</span></div>
     <div class="loading" id="loading">Loading New York streets…</div>
@@ -289,7 +291,7 @@ function photo(layer, s, w, h, dpr) {
     ctx.drawImage(o.img, (tx - ((tx >> d) << d)) * f, (ty - ((ty >> d) << d)) * f, f, f, X0, Y0, wx(tx + 1) - X0 + e, wy(ty + 1) - Y0 + e);
   }
 }
-function setView(v) { state.view = LAYERS[v] ? v : 'map'; for (const b of $('views').children) b.setAttribute('aria-pressed', b.dataset.v === state.view); $('attr').hidden = state.view === 'map'; try { localStorage.setItem('alive-view', state.view); } catch (e) {} syncURL(); draw(); }
+function setView(v) { state.view = LAYERS[v] ? v : 'map'; for (const b of $('views').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.v === state.view); $('attr').hidden = state.view === 'map'; $('attr').textContent = state.view === '2024' ? 'Aerial photos: City of New York' : `This is New York photographed from the air in ${state.view}, with today's walk drawn on top. Photos: City of New York`; try { localStorage.setItem('alive-view', state.view); } catch (e) {} syncURL(); draw(); }
 const rnd = n => { const v = Math.sin(n * 127.1 + 3.3) * 43758.5453; return v - Math.floor(v); };
 const inPoly = (b, x, y) => { if (x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) return false; let c = false; for (const r of b.pg) for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) { const xi = r[i], yi = r[i + 1], xj = r[j], yj = r[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 const insetL = () => { const r = document.querySelector('.rail'); return getComputedStyle(r).position === 'absolute' ? r.offsetLeft + r.offsetWidth : 0; };
